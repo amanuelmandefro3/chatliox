@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import enum
+import uuid
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
+from app.models.base import TimestampMixin, UUIDMixin
+
+if TYPE_CHECKING:
+    from app.models.message import Message
+    from app.models.organization import Organization
+    from app.models.user import User
+
+
+class ConversationStatus(str, enum.Enum):
+    OPEN = "open"
+    WAITING = "waiting"   # visitor sent a message, no admin reply yet
+    CLOSED = "closed"
+
+
+class Conversation(UUIDMixin, TimestampMixin, Base):
+    __tablename__ = "conversations"
+
+    # Visitor identity — anonymous by default, enriched optionally
+    visitor_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    visitor_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    visitor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    status: Mapped[ConversationStatus] = mapped_column(
+        Enum(ConversationStatus, name="conversation_status", values_callable=lambda obj: [e.value for e in obj]),
+        default=ConversationStatus.WAITING,
+        nullable=False,
+    )
+
+    # Denormalized: updated on every new message so we can ORDER BY without
+    # aggregating across the messages table — critical for the dashboard list.
+    last_message_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    assigned_to_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+    organization: Mapped[Organization] = relationship(
+        "Organization", back_populates="conversations"
+    )
+    assigned_to: Mapped[User | None] = relationship(
+        "User", back_populates="assigned_conversations", foreign_keys=[assigned_to_id]
+    )
+    messages: Mapped[list[Message]] = relationship(
+        "Message", back_populates="conversation", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_conversations_visitor_id", "visitor_id"),
+        Index("ix_conversations_status", "status"),
+        Index("ix_conversations_last_message_at", "last_message_at"),
+        Index("ix_conversations_organization_id", "organization_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Conversation {self.id} [{self.status}]>"
