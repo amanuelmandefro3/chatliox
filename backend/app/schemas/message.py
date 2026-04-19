@@ -13,6 +13,7 @@ class CreateMessageRequest(BaseModel):
     conversation_id: uuid.UUID
     content: NonEmptyStr
     sender_type: SenderType
+    is_internal: bool = False
 
 
 class MessageResponse(BaseModel):
@@ -22,6 +23,8 @@ class MessageResponse(BaseModel):
     conversation_id: uuid.UUID
     sender_type: SenderType
     sender_id: uuid.UUID | None
+    sender_name: str | None = None
     content: str
     is_read: bool
+    is_internal: bool
     created_at: datetime

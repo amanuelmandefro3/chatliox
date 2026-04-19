@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getConversations } from '@/api/conversations'
+import Logo from '@/components/Logo'
 import { useAuthStore } from '@/store/authStore'
 import type { Conversation } from '@/types/chat'
 
@@ -49,12 +50,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top bar */}
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
-            <span className="text-white text-sm font-bold">C</span>
-          </div>
-          <span className="font-semibold text-gray-900 text-sm">Chatliox</span>
-        </div>
+        <Logo className="h-7 w-auto" variant="dark" />
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-500">{user?.full_name}</span>
           <button onClick={handleLogout} className="text-sm text-gray-400 hover:text-red-500 transition">

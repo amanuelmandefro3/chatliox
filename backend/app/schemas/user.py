@@ -9,6 +9,7 @@ class OrganizationInfo(BaseModel):
 
     name: str
     widget_key: str
+    invite_token: str
 
 
 class UserResponse(BaseModel):
