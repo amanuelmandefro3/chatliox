@@ -34,11 +34,11 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/join/:token" element={<JoinPage />} />
-        <Route path="/welcome" element={<WelcomePage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<AdminDashboard />} />
           <Route path="/c/:id" element={<AdminDashboard />} />
           <Route path="/chat/:id" element={<ChatPage />} />
+          <Route path="/welcome" element={<WelcomePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
