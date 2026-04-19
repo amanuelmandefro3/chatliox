@@ -7,7 +7,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.routers import auth, conversations, health, messages
+from app.routers import auth, conversations, health, messages, organizations
 from app.websockets import router as ws_router
 
 app = FastAPI(
@@ -54,3 +54,4 @@ app.include_router(auth.router)
 app.include_router(conversations.router)
 app.include_router(messages.router)
 app.include_router(ws_router.router)
+app.include_router(organizations.router)

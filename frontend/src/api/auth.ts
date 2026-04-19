@@ -9,3 +9,12 @@ export const register = (data: RegisterRequest): Promise<TokenResponse> =>
 
 export const getMe = (): Promise<User> =>
   client.get<User>('/auth/me').then((r) => r.data)
+
+export const getInviteInfo = (token: string): Promise<{ org_name: string }> =>
+  client.get<{ org_name: string }>(`/auth/invite/${token}`).then((r) => r.data)
+
+export const acceptInvite = (
+  token: string,
+  data: { email: string; password: string; full_name: string },
+): Promise<TokenResponse> =>
+  client.post<TokenResponse>(`/auth/invite/${token}`, data).then((r) => r.data)

@@ -44,9 +44,10 @@ class Message(UUIDMixin, TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
     # True = admin has read this message.
-    # Only meaningful for VISITOR messages — ADMIN messages are set True at insert
-    # since the sender already knows what they wrote.
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    # Internal notes are only visible to admins — never broadcast to visitor WS connections.
+    is_internal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
 
     conversation: Mapped[Conversation] = relationship(
         "Conversation", back_populates="messages"
@@ -60,6 +61,10 @@ class Message(UUIDMixin, TimestampMixin, Base):
         Index("ix_messages_conversation_id_created_at", "conversation_id", "created_at"),
         Index("ix_messages_sender_id", "sender_id"),
     )
+
+    @property
+    def sender_name(self) -> str | None:
+        return self.sender.full_name if self.sender else None
 
     def __repr__(self) -> str:
         return f"<Message {self.id} [{self.sender_type}]>"
