@@ -1,5 +1,9 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+
+logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -17,7 +21,7 @@ async def rotate_invite(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> OrganizationInfo:
-    org = await rotate_invite_token(db, str(current_user.organization_id))
+    org = await rotate_invite_token(db, current_user.organization_id)
     if org is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
     return org
@@ -34,7 +38,7 @@ async def send_invite(
     current_user: User = Depends(get_current_user),
 ) -> None:
     from app.services.organization import get_organization_by_id
-    org = await get_organization_by_id(db, str(current_user.organization_id))
+    org = await get_organization_by_id(db, current_user.organization_id)
     if org is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
 
@@ -45,7 +49,8 @@ async def send_invite(
     try:
         await send_invite_email(body.email, org.name, invite_url)
     except Exception as exc:
+        logger.exception("Failed to send invite email to %s: %s", body.email, exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to send email: {exc}",
+            detail="Failed to send invite email. Check your SMTP settings.",
         ) from exc

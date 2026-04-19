@@ -8,14 +8,8 @@ from app.core.config import settings
 
 
 def _make_ssl_context() -> ssl.SSLContext:
-    try:
-        import certifi
-        ctx = ssl.create_default_context(cafile=certifi.where())
-    except ImportError:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-    return ctx
+    import certifi
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def _send_sync(to_email: str, subject: str, html_body: str) -> None:

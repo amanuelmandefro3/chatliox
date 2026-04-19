@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { register, getMe } from '@/api/auth'
 import Logo from '@/components/Logo'
 import { useAuthStore } from '@/store/authStore'
@@ -16,10 +16,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  if (isAuthenticated()) {
-    navigate('/', { replace: true })
-    return null
-  }
+  if (isAuthenticated()) return <Navigate to="/" replace />
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()

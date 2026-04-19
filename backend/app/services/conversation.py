@@ -58,7 +58,12 @@ async def update_conversation_status(
     conversation_id: uuid.UUID,
     new_status: ConversationStatus,
 ) -> Conversation | None:
-    conv = await db.get(Conversation, conversation_id)
+    result = await db.execute(
+        select(Conversation)
+        .where(Conversation.id == conversation_id)
+        .options(selectinload(Conversation.assigned_to))
+    )
+    conv = result.scalar_one_or_none()
     if conv is None:
         return None
     conv.status = new_status

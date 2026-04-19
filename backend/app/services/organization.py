@@ -35,16 +35,17 @@ async def get_organization_by_invite_token(
     return result.scalar_one_or_none()
 
 
-async def get_organization_by_id(db: AsyncSession, org_id: str) -> Organization | None:
+async def get_organization_by_id(db: AsyncSession, org_id: uuid.UUID) -> Organization | None:
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     return result.scalar_one_or_none()
 
 
-async def rotate_invite_token(db: AsyncSession, org_id: str) -> Organization | None:
+async def rotate_invite_token(db: AsyncSession, org_id: uuid.UUID) -> Organization | None:
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     org = result.scalar_one_or_none()
     if org is None:
         return None
     org.invite_token = str(uuid.uuid4())
-    await db.flush()
+    await db.commit()
+    await db.refresh(org)
     return org

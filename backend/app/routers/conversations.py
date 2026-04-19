@@ -78,6 +78,8 @@ async def update_status(
     if not conv or conv.organization_id != current_user.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     updated = await update_conversation_status(db, conversation_id, body.status)
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
     await ws_manager.broadcast(
         str(conversation_id),
         {"type": "status", "status": body.status.value},

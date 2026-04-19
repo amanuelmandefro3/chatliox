@@ -53,6 +53,10 @@ async def create(
     if message is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
+    # Populate sender in-memory so sender_name is available without async lazy-load
+    if body.sender_type == SenderType.ADMIN and current_user is not None:
+        message.sender = current_user
+
     if not body.is_internal:
         payload = {"type": "message", **MessageResponse.model_validate(message).model_dump(mode="json")}
         await ws_manager.broadcast(str(body.conversation_id), payload)
