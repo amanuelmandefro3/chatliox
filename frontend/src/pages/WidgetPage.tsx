@@ -9,19 +9,17 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
-import { createConversation } from '@/api/conversations'
+import { createConversation, getVisitorConversationStatus } from '@/api/conversations'
 import { getVisitorMessages, sendMessage } from '@/api/messages'
-import type { Message, WsEvent } from '@/types/chat'
+import type { ConversationStatus, Message, WsEvent } from '@/types/chat'
 
 function widgetErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    if (error.response?.status === 429) return 'Too many requests. Please wait a moment and try again.'
-    if (!error.response || error.response.status >= 500) return 'Chat is temporarily unavailable. Please try again later.'
+    if (error.response?.status === 429) return 'Too many requests. Please wait a moment.'
+    if (!error.response || error.response.status >= 500) return 'Chat is temporarily unavailable.'
   }
   return 'Something went wrong. Please try again.'
 }
-
-// ─── Visitor identity (namespaced per widget key to isolate tenants) ─────────
 
 function getOrCreateVisitorId(widgetKey: string): string {
   const storageKey = `chatliox_visitor_id_${widgetKey}`
@@ -55,8 +53,9 @@ export default function WidgetPage() {
   const [conversationId, setConversationId] = useState<string | null>(
     () => getStoredConversationId(widgetKey)
   )
+  const [adminName, setAdminName] = useState<string | null>(null)
+  const [convStatus, setConvStatus] = useState<ConversationStatus | null>(null)
 
-  // Make the iframe background transparent so it blends into the host page
   useEffect(() => {
     document.documentElement.style.background = 'transparent'
     document.body.style.background = 'transparent'
@@ -64,8 +63,8 @@ export default function WidgetPage() {
 
   if (!widgetKey) {
     return (
-      <div className="fixed bottom-4 right-4">
-        <div className="w-14 h-14 bg-gray-300 rounded-full flex items-center justify-center" title="Widget key missing" />
+      <div className="fixed bottom-5 right-5">
+        <div className="w-14 h-14 bg-zinc-300 rounded-full" title="Widget key missing" />
       </div>
     )
   }
@@ -76,38 +75,45 @@ export default function WidgetPage() {
   }
 
   return (
-    <div className="fixed inset-0 flex items-end justify-end p-4 pointer-events-none">
-      {/* Chat panel */}
-      {isOpen && (
-        <div className="pointer-events-auto mb-16 w-80 h-[480px] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden">
-          <PanelHeader onClose={() => setIsOpen(false)} />
-          {conversationId ? (
-            <ChatView conversationId={conversationId} visitorId={visitorId} />
-          ) : (
-            <WelcomeView
-              visitorId={visitorId}
-              widgetKey={widgetKey}
-              onConversationCreated={handleConversationCreated}
-            />
-          )}
-        </div>
-      )}
+    <div className="fixed inset-0 flex items-end justify-end p-5 pointer-events-none">
 
-      {/* Launcher bubble */}
+      {/* ── Chat panel ─────────────────────────────────────────────────────── */}
+      <div
+        className={`pointer-events-auto mb-16 w-[360px] h-[540px] bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 flex flex-col overflow-hidden origin-bottom-right transition-all duration-300 ease-out ${
+          isOpen
+            ? 'opacity-100 scale-100 translate-y-0'
+            : 'opacity-0 scale-95 translate-y-4 pointer-events-none'
+        }`}
+        aria-hidden={!isOpen}
+      >
+        <PanelHeader onClose={() => setIsOpen(false)} adminName={adminName} />
+        {conversationId ? (
+          <ChatView conversationId={conversationId} visitorId={visitorId} onAdminName={setAdminName} convStatus={convStatus} onStatusChange={setConvStatus} />
+        ) : (
+          <WelcomeView
+            visitorId={visitorId}
+            widgetKey={widgetKey}
+            onConversationCreated={handleConversationCreated}
+          />
+        )}
+      </div>
+
+      {/* ── Launcher button ─────────────────────────────────────────────────── */}
       <button
         onClick={() => setIsOpen((v) => !v)}
-        className="pointer-events-auto w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 flex-shrink-0"
+        className="pointer-events-auto w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 ease-out hover:scale-105 active:scale-95 flex-shrink-0"
         aria-label={isOpen ? 'Close chat' : 'Open chat'}
       >
-        {isOpen ? (
+        <span className={`absolute transition-all duration-200 ${isOpen ? 'opacity-100 rotate-0' : 'opacity-0 rotate-90'}`}>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
-        ) : (
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </span>
+        <span className={`absolute transition-all duration-200 ${isOpen ? 'opacity-0 -rotate-90' : 'opacity-100 rotate-0'}`}>
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
           </svg>
-        )}
+        </span>
       </button>
     </div>
   )
@@ -115,32 +121,36 @@ export default function WidgetPage() {
 
 // ─── Panel header ─────────────────────────────────────────────────────────────
 
-function PanelHeader({ onClose }: { onClose: () => void }) {
+function PanelHeader({ onClose, adminName }: { onClose: () => void; adminName: string | null }) {
   return (
-    <div className="bg-brand-500 px-4 py-3 flex items-center justify-between flex-shrink-0">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-sm">
-          S
+    <div className="bg-brand-500 px-5 py-4 flex items-center justify-between flex-shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+          </svg>
         </div>
         <div>
-          <p className="text-white font-semibold text-sm leading-tight">Support</p>
-          <p className="text-white/70 text-xs">Typically replies in minutes</p>
+          <p className="text-white font-semibold text-sm leading-tight tracking-tight">{adminName ?? 'Support'}</p>
+          <p className="text-white/50 text-xs mt-0.5">
+            {adminName ? 'Here to help you' : 'We typically reply in a few minutes'}
+          </p>
         </div>
       </div>
       <button
         onClick={onClose}
-        className="text-white/70 hover:text-white transition p-1 rounded"
+        className="text-white/60 hover:text-white transition-all duration-200 p-1.5 rounded-lg hover:bg-white/20"
         aria-label="Close"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
     </div>
   )
 }
 
-// ─── Welcome screen (no conversation yet) ────────────────────────────────────
+// ─── Welcome screen ───────────────────────────────────────────────────────────
 
 interface WelcomeViewProps {
   visitorId: string
@@ -150,7 +160,6 @@ interface WelcomeViewProps {
 
 function WelcomeView({ visitorId, widgetKey, onConversationCreated }: WelcomeViewProps) {
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
   const [firstMessage, setFirstMessage] = useState('')
 
   const { mutate: startChat, isPending, error: startError } = useMutation({
@@ -158,7 +167,6 @@ function WelcomeView({ visitorId, widgetKey, onConversationCreated }: WelcomeVie
       const conv = await createConversation({
         visitor_id: visitorId,
         visitor_name: name.trim() || undefined,
-        visitor_email: email.trim() || undefined,
         widget_key: widgetKey,
       })
       if (firstMessage.trim()) {
@@ -175,60 +183,55 @@ function WelcomeView({ visitorId, widgetKey, onConversationCreated }: WelcomeVie
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* Hero strip — continues from header */}
       <div className="bg-brand-500 px-5 pb-5">
-        <p className="text-white/90 text-sm leading-snug">
-          👋 Hi there! Send us a message and we'll get back to you shortly.
+        <p className="text-white/60 text-xs leading-relaxed">
+          Send us a message and we'll get back to you shortly.
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2.5">
         <input
           type="text"
           placeholder="Your name (optional)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition"
-        />
-        <input
-          type="email"
-          placeholder="Your email (optional)"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition"
+          className="w-full bg-zinc-50 rounded-xl px-3.5 py-2.5 text-sm text-zinc-800 placeholder:text-zinc-400 outline-none focus:bg-white focus:ring-2 focus:ring-brand-100 transition-all duration-200"
         />
         <textarea
-          placeholder="Type your message…"
+          placeholder="How can we help you?"
           value={firstMessage}
           onChange={(e) => setFirstMessage(e.target.value)}
-          rows={3}
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition resize-none"
+          rows={4}
+          className="w-full bg-zinc-50 rounded-xl px-3.5 py-2.5 text-sm text-zinc-800 placeholder:text-zinc-400 outline-none focus:bg-white focus:ring-2 focus:ring-brand-100 transition-all duration-200 resize-none"
         />
 
         {startError && (
-          <p className="text-xs text-red-500">{widgetErrorMessage(startError)}</p>
+          <p className="text-xs text-red-500 px-1">{widgetErrorMessage(startError)}</p>
         )}
 
         <button
           onClick={() => startChat()}
           disabled={!firstMessage.trim() || isPending}
-          className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-medium transition"
+          className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-medium transition-all duration-200"
         >
-          {isPending ? 'Starting…' : 'Start chatting →'}
+          {isPending ? 'Starting…' : 'Send message →'}
         </button>
       </div>
     </div>
   )
 }
 
-// ─── Chat view (conversation exists) ─────────────────────────────────────────
+// ─── Chat view ────────────────────────────────────────────────────────────────
 
 interface ChatViewProps {
   conversationId: string
   visitorId: string
+  onAdminName: (name: string | null) => void
+  convStatus: ConversationStatus | null
+  onStatusChange: (s: ConversationStatus) => void
 }
 
-function ChatView({ conversationId, visitorId }: ChatViewProps) {
+function ChatView({ conversationId, visitorId, onAdminName, convStatus, onStatusChange }: ChatViewProps) {
   const queryClient = useQueryClient()
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -244,13 +247,27 @@ function ChatView({ conversationId, visitorId }: ChatViewProps) {
     retry: 2,
   })
 
-  // Auto-scroll when messages change
+  const { data: statusData } = useQuery({
+    queryKey: ['widget-conv-status', conversationId],
+    queryFn: () => getVisitorConversationStatus(conversationId, visitorId),
+  })
+
+  useEffect(() => {
+    if (statusData) onStatusChange(statusData.status)
+  }, [statusData, onStatusChange])
+
   useEffect(() => {
     const el = scrollContainerRef.current
     if (!el) return
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150
     if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const adminDisplayName = [...messages].reverse().find((m) => m.sender_type === 'admin' && m.sender_name)?.sender_name ?? null
+
+  useEffect(() => {
+    onAdminName(adminDisplayName)
+  }, [adminDisplayName, onAdminName])
 
   const appendMessage = useCallback(
     (msg: Message) => {
@@ -261,7 +278,6 @@ function ChatView({ conversationId, visitorId }: ChatViewProps) {
     [queryClient, conversationId]
   )
 
-  // WebSocket: receive messages + admin typing indicator
   useEffect(() => {
     let active = true
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -280,8 +296,9 @@ function ChatView({ conversationId, visitorId }: ChatViewProps) {
       ws.onmessage = (event: MessageEvent) => {
         try {
           const evt = JSON.parse(event.data as string) as WsEvent
-          if (evt.type === 'message') appendMessage(evt)
+          if (evt.type === 'message' && !evt.is_internal) appendMessage(evt)
           else if (evt.type === 'typing') setAdminTyping(evt.is_typing)
+          else if (evt.type === 'status') onStatusChange(evt.status)
         } catch {
           // ignore malformed frames
         }
@@ -330,55 +347,64 @@ function ChatView({ conversationId, visitorId }: ChatViewProps) {
     if (!content.trim()) return
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     sendTyping(false)
+    // Optimistically reopen if resolved — backend will confirm via WS status event
+    if (convStatus === 'closed') onStatusChange('waiting')
     send({ conversation_id: conversationId, content: content.trim(), sender_type: 'visitor' })
   }
 
-  if (messagesUnavailable) {
-    return <UnavailableState />
-  }
+  if (messagesUnavailable) return <UnavailableState />
 
   return (
     <>
       {/* Messages */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2.5 bg-gray-50 scrollbar-thin scrollbar-thumb-gray-200"
+        className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2 bg-zinc-50/50"
       >
         {isLoading && (
-          <p className="text-center text-xs text-gray-400 py-6">Loading…</p>
+          <p className="text-center text-xs text-zinc-400 py-6">Loading…</p>
         )}
         {!isLoading && messages.length === 0 && (
-          <p className="text-center text-xs text-gray-400 py-6">
-            No messages yet.
-          </p>
+          <p className="text-center text-xs text-zinc-400 py-6">No messages yet.</p>
         )}
-        {messages.map((msg) => (
+        {messages.filter((msg) => !msg.is_internal).map((msg) => (
           <WidgetBubble key={msg.id} message={msg} />
         ))}
         <div ref={bottomRef} />
       </div>
 
       {/* Admin typing indicator */}
-      <div className={`px-4 bg-gray-50 transition-all duration-200 overflow-hidden ${
+      <div className={`px-4 bg-zinc-50/50 transition-all duration-200 overflow-hidden ${
         adminTyping ? 'h-7 opacity-100' : 'h-0 opacity-0'
       }`}>
-        <div className="flex items-center gap-2 text-xs text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-zinc-400">
           <span className="flex items-end gap-0.5 h-3">
             {[0, 150, 300].map((delay) => (
               <span
                 key={delay}
-                className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"
                 style={{ animationDelay: `${delay}ms` }}
               />
             ))}
           </span>
-          Support is typing…
+          {adminDisplayName ?? 'Support'} is typing…
         </div>
       </div>
 
-      {/* Send error */}
+      {/* Resolved banner */}
+      {convStatus === 'closed' && (
+        <div className="mx-3 mb-2 mt-1 flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-3.5 py-2.5">
+          <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+          <p className="text-xs text-emerald-700 leading-snug">
+            This conversation was resolved. Reply below to reopen it.
+          </p>
+        </div>
+      )}
+
       {sendError && (
-        <div className="px-3 pb-1 bg-white">
+        <div className="px-4 pb-1 bg-white">
           <p className="text-xs text-red-500">{widgetErrorMessage(sendError)}</p>
         </div>
       )}
@@ -386,7 +412,7 @@ function ChatView({ conversationId, visitorId }: ChatViewProps) {
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white border-t border-gray-200 px-3 py-2.5 flex items-end gap-2 flex-shrink-0"
+        className="bg-white border-t border-zinc-200 px-3 py-2.5 flex items-end gap-2 flex-shrink-0"
       >
         <textarea
           value={content}
@@ -397,34 +423,36 @@ function ChatView({ conversationId, visitorId }: ChatViewProps) {
               handleSubmit(e as unknown as FormEvent)
             }
           }}
-          placeholder="Type a message…"
+          placeholder={convStatus === 'closed' ? 'Reply to reopen…' : 'Type a message…'}
           rows={1}
-          className="flex-1 resize-none rounded-xl border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition max-h-28"
+          className="flex-1 resize-none bg-zinc-50 rounded-xl px-3.5 py-2.5 text-sm text-zinc-800 placeholder:text-zinc-400 outline-none focus:bg-white focus:ring-2 focus:ring-brand-100 transition-all duration-200 max-h-28"
         />
         <button
           type="submit"
           disabled={isPending || !content.trim()}
-          className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white rounded-xl px-3 py-2 text-sm font-medium transition flex-shrink-0"
+          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl px-3 py-2.5 transition-all duration-200 flex-shrink-0"
         >
-          Send
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+          </svg>
         </button>
       </form>
     </>
   )
 }
 
-// ─── Unavailable state (backend unreachable or rate-limited) ─────────────────
+// ─── Unavailable state ────────────────────────────────────────────────────────
 
 function UnavailableState() {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center bg-gray-50">
-      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center bg-zinc-50">
+      <div className="w-10 h-10 bg-zinc-100 rounded-full flex items-center justify-center">
+        <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
         </svg>
       </div>
-      <p className="text-sm font-medium text-gray-700">Chat temporarily unavailable</p>
-      <p className="text-xs text-gray-400">We're having trouble connecting. Please try again in a few minutes.</p>
+      <p className="text-sm font-medium text-zinc-700 tracking-tight">Chat temporarily unavailable</p>
+      <p className="text-xs text-zinc-400 leading-relaxed">Having trouble connecting. Please try again in a few minutes.</p>
     </div>
   )
 }
@@ -436,13 +464,13 @@ function WidgetBubble({ message }: { message: Message }) {
 
   return (
     <div className={`flex ${isVisitor ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
+      <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm ${
         isVisitor
-          ? 'bg-brand-500 text-white rounded-br-sm'
-          : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm'
+          ? 'bg-brand-500 text-white'
+          : 'bg-white ring-1 ring-zinc-200 text-zinc-800'
       }`}>
         <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
-        <p className={`text-xs mt-1 text-right ${isVisitor ? 'text-brand-100' : 'text-gray-400'}`}>
+        <p className={`text-xs mt-1 text-right ${isVisitor ? 'text-brand-100' : 'text-zinc-400'}`}>
           {formatTime(message.created_at)}
         </p>
       </div>

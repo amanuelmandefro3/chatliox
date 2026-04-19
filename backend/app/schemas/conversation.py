@@ -13,6 +13,10 @@ class CreateConversationRequest(BaseModel):
     widget_key: str
 
 
+class UpdateConversationStatusRequest(BaseModel):
+    status: ConversationStatus
+
+
 class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -23,3 +27,4 @@ class ConversationResponse(BaseModel):
     status: ConversationStatus
     last_message_at: datetime | None
     created_at: datetime
+    assigned_to_name: str | None = None

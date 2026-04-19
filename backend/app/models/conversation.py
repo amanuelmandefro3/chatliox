@@ -70,5 +70,9 @@ class Conversation(UUIDMixin, TimestampMixin, Base):
         Index("ix_conversations_organization_id", "organization_id"),
     )
 
+    @property
+    def assigned_to_name(self) -> str | None:
+        return self.assigned_to.full_name if self.assigned_to else None
+
     def __repr__(self) -> str:
         return f"<Conversation {self.id} [{self.status}]>"

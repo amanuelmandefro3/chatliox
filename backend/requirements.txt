@@ -13,3 +13,4 @@ python-multipart==0.0.12
 email-validator==2.2.0
 slowapi==0.1.9
 limits==3.13.0
+certifi>=2024.0.0

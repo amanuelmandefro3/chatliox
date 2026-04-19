@@ -6,15 +6,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.limiter import limiter
+from app.core.ws_manager import manager as ws_manager
 from app.models.conversation import ConversationStatus
 from app.models.user import User
-from app.schemas.conversation import ConversationResponse, CreateConversationRequest
+from app.schemas.conversation import ConversationResponse, CreateConversationRequest, UpdateConversationStatusRequest
 from app.schemas.message import MessageResponse
 from app.services.conversation import (
     create_conversation,
     get_conversation,
     get_conversations,
     mark_visitor_messages_read,
+    update_conversation_status,
 )
 from app.services.message import get_messages
 from app.services.organization import get_organization_by_widget_key
@@ -65,6 +67,38 @@ async def list_messages(
     return await get_messages(db, conversation_id)
 
 
+@router.patch("/{conversation_id}/status", response_model=ConversationResponse)
+async def update_status(
+    conversation_id: uuid.UUID,
+    body: UpdateConversationStatusRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ConversationResponse:
+    conv = await get_conversation(db, conversation_id)
+    if not conv or conv.organization_id != current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    updated = await update_conversation_status(db, conversation_id, body.status)
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    await ws_manager.broadcast(
+        str(conversation_id),
+        {"type": "status", "status": body.status.value},
+    )
+    return updated
+
+
+@router.get("/{conversation_id}/visitor-status")
+async def get_visitor_status(
+    conversation_id: uuid.UUID,
+    visitor_id: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    conv = await get_conversation(db, conversation_id)
+    if not conv or str(conv.visitor_id) != visitor_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    return {"status": conv.status.value}
+
+
 @router.get("/{conversation_id}/visitor-messages", response_model=list[MessageResponse])
 async def list_visitor_messages(
     conversation_id: uuid.UUID,
@@ -74,4 +108,5 @@ async def list_visitor_messages(
     conv = await get_conversation(db, conversation_id)
     if not conv or str(conv.visitor_id) != visitor_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-    return await get_messages(db, conversation_id)
+    messages = await get_messages(db, conversation_id)
+    return [m for m in messages if not m.is_internal]

@@ -5,7 +5,10 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import AdminDashboard from '@/pages/AdminDashboard'
 import ChatPage from '@/pages/ChatPage'
+import JoinPage from '@/pages/JoinPage'
 import LoginPage from '@/pages/LoginPage'
+import RegisterPage from '@/pages/RegisterPage'
+import WelcomePage from '@/pages/WelcomePage'
 import WidgetPage from '@/pages/WidgetPage'
 import { useAuthStore } from '@/store/authStore'
 
@@ -29,10 +32,13 @@ export default function App() {
       <Routes>
         <Route path="/widget" element={<WidgetPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/join/:token" element={<JoinPage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<AdminDashboard />} />
           <Route path="/c/:id" element={<AdminDashboard />} />
           <Route path="/chat/:id" element={<ChatPage />} />
+          <Route path="/welcome" element={<WelcomePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
