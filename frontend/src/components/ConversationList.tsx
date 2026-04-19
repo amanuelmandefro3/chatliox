@@ -15,36 +15,28 @@ const FILTERS: { key: Filter; label: string }[] = [
 function timeAgo(iso: string | null): string {
   if (!iso) return '—'
   const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 60_000) return 'Just now'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return new Date(iso).toLocaleDateString()
+  if (diff < 60_000) return 'now'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 function visitorLabel(c: Conversation): string {
-  return c.visitor_name ?? c.visitor_email ?? 'Anonymous visitor'
+  return c.visitor_name ?? c.visitor_email ?? 'Anonymous'
 }
 
-function avatarInitial(c: Conversation): string {
-  const label = visitorLabel(c)
-  return label[0]?.toUpperCase() ?? '?'
-}
-
-const AVATAR_COLORS = [
-  'bg-violet-500',
-  'bg-blue-500',
-  'bg-emerald-500',
-  'bg-orange-500',
-  'bg-pink-500',
-  'bg-cyan-500',
-  'bg-amber-500',
-  'bg-rose-500',
+const AVATAR_PALETTE = [
+  'bg-indigo-100 text-indigo-700',
+  'bg-sky-100 text-sky-700',
+  'bg-teal-100 text-teal-700',
+  'bg-violet-100 text-violet-700',
+  'bg-zinc-100 text-zinc-600',
 ]
 
-function avatarColor(id: string): string {
+function avatarStyle(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length]
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]
 }
 
 interface Props {
@@ -58,7 +50,7 @@ export default function ConversationList({ activeId, onSelect }: Props) {
   const { data: conversations = [], isLoading } = useQuery({
     queryKey: ['conversations'],
     queryFn: () => getConversations(),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
   })
 
   const filtered = filter === 'all'
@@ -68,43 +60,46 @@ export default function ConversationList({ activeId, onSelect }: Props) {
   const waitingCount = conversations.filter((c) => c.status === 'waiting').length
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Filter tabs */}
-      <div className="flex gap-1 px-3 pt-3 pb-2 flex-shrink-0">
-        {FILTERS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`flex-1 text-xs font-medium py-1.5 rounded-lg transition ${
-              filter === key
-                ? 'bg-brand-500 text-white'
-                : 'text-gray-500 hover:bg-gray-100'
-            }`}
-          >
-            {label}
-            {key === 'waiting' && waitingCount > 0 && (
-              <span className={`ml-1 text-xs rounded-full px-1.5 py-0.5 ${
-                filter === key ? 'bg-white/20' : 'bg-amber-100 text-amber-600'
-              }`}>
-                {waitingCount}
-              </span>
-            )}
-          </button>
-        ))}
+    <div className="flex flex-col h-full overflow-hidden">
+
+      {/* macOS-style segmented control */}
+      <div className="px-3 pb-3 flex-shrink-0">
+        <div className="flex bg-zinc-100 p-0.5 rounded-lg">
+          {FILTERS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`flex-1 relative text-xs py-1 rounded-md transition-all duration-200 ${
+                filter === key
+                  ? 'bg-white shadow text-zinc-900 font-semibold'
+                  : 'text-zinc-500 hover:text-zinc-800 font-medium'
+              }`}
+            >
+              {label}
+              {key === 'waiting' && waitingCount > 0 && (
+                <span className="ml-1 text-[10px] font-semibold bg-indigo-500 text-white rounded-full px-1.5 py-0">
+                  {waitingCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
+      {/* Thread list */}
+      <div className="flex-1 overflow-y-auto">
         {isLoading && (
-          <p className="text-xs text-gray-400 text-center py-8">Loading…</p>
+          <div className="flex justify-center py-10">
+            <div className="w-5 h-5 rounded-full border-2 border-zinc-200 border-t-zinc-500 animate-spin" />
+          </div>
         )}
 
         {!isLoading && filtered.length === 0 && (
-          <p className="text-xs text-gray-400 text-center py-8">No conversations.</p>
+          <p className="text-xs text-zinc-400 text-center py-12">No conversations yet.</p>
         )}
 
         {filtered.map((c) => (
-          <ConversationCard
+          <Row
             key={c.id}
             conversation={c}
             isActive={c.id === activeId}
@@ -116,7 +111,7 @@ export default function ConversationList({ activeId, onSelect }: Props) {
   )
 }
 
-function ConversationCard({
+function Row({
   conversation: c,
   isActive,
   onClick,
@@ -125,47 +120,45 @@ function ConversationCard({
   isActive: boolean
   onClick: () => void
 }) {
+  const isWaiting = c.status === 'waiting'
+
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-3 flex items-start gap-3 transition border-l-2 ${
+      className={`w-full text-left flex items-center gap-3 px-4 py-3 border-l-2 transition-all duration-150 ${
         isActive
-          ? 'bg-brand-50 border-brand-500'
-          : 'border-transparent hover:bg-gray-50'
+          ? 'bg-zinc-50 border-l-indigo-500'
+          : 'border-l-transparent hover:bg-zinc-50'
       }`}
     >
       {/* Avatar */}
-      <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 text-white text-sm font-semibold ${avatarColor(c.id)}`}>
-        {avatarInitial(c)}
+      <div className="relative flex-shrink-0">
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${avatarStyle(c.id)}`}>
+          {(visitorLabel(c)[0] ?? '?').toUpperCase()}
+        </div>
+        {isWaiting && (
+          <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-indigo-500 rounded-full ring-2 ring-white" />
+        )}
       </div>
 
-      {/* Info */}
+      {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-1 mb-0.5">
-          <p className={`text-sm truncate ${isActive ? 'font-semibold text-gray-900' : 'font-medium text-gray-800'}`}>
+        <div className="flex items-baseline justify-between gap-2 mb-0.5">
+          <span className={`text-sm truncate ${
+            isWaiting ? 'font-semibold text-zinc-900' : 'font-medium text-zinc-700'
+          }`}>
             {visitorLabel(c)}
-          </p>
-          <span className="text-xs text-gray-400 flex-shrink-0">{timeAgo(c.last_message_at)}</span>
+          </span>
+          <span className="text-[11px] text-zinc-400 flex-shrink-0 tabular-nums">
+            {timeAgo(c.last_message_at)}
+          </span>
         </div>
-
-        <div className="flex items-center justify-between gap-1">
-          <p className="text-xs text-gray-400 truncate">
-            {c.visitor_email && c.visitor_name ? c.visitor_email : 'No email'}
-          </p>
-          <StatusBadge status={c.status} />
-        </div>
+        <p className="text-xs text-zinc-400 truncate">
+          {c.assigned_to_name
+            ? <span className="text-indigo-500 font-medium">{c.assigned_to_name}</span>
+            : c.visitor_email ?? (c.status === 'closed' ? 'Resolved' : 'No reply yet')}
+        </p>
       </div>
     </button>
-  )
-}
-
-function StatusBadge({ status }: { status: ConversationStatus }) {
-  if (status === 'open') return null
-  return (
-    <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-      status === 'waiting' ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-400'
-    }`}>
-      {status}
-    </span>
   )
 }

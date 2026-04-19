@@ -1,6 +1,7 @@
 export interface Organization {
   name: string
   widget_key: string
+  invite_token: string
 }
 
 export interface User {
@@ -21,6 +22,7 @@ export interface RegisterRequest {
   email: string
   password: string
   full_name: string
+  org_name: string
 }
 
 export interface TokenResponse {

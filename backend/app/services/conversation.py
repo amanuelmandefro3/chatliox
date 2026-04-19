@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.conversation import Conversation, ConversationStatus
 from app.models.message import Message, SenderType
@@ -33,7 +34,11 @@ async def get_conversations(
     organization_id: uuid.UUID,
     status: ConversationStatus | None = None,
 ) -> list[Conversation]:
-    q = select(Conversation).where(Conversation.organization_id == organization_id)
+    q = (
+        select(Conversation)
+        .where(Conversation.organization_id == organization_id)
+        .options(selectinload(Conversation.assigned_to))
+    )
     if status is not None:
         q = q.where(Conversation.status == status)
     q = q.order_by(
@@ -46,6 +51,20 @@ async def get_conversations(
 
 async def get_conversation(db: AsyncSession, conversation_id: uuid.UUID) -> Conversation | None:
     return await db.get(Conversation, conversation_id)
+
+
+async def update_conversation_status(
+    db: AsyncSession,
+    conversation_id: uuid.UUID,
+    new_status: ConversationStatus,
+) -> Conversation | None:
+    conv = await db.get(Conversation, conversation_id)
+    if conv is None:
+        return None
+    conv.status = new_status
+    await db.commit()
+    await db.refresh(conv)
+    return conv
 
 
 async def mark_visitor_messages_read(db: AsyncSession, conversation_id: uuid.UUID) -> None:

@@ -5,6 +5,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: str
+    org_name: str
 
 
 class LoginRequest(BaseModel):
@@ -15,3 +16,13 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class InviteInfoResponse(BaseModel):
+    org_name: str
+
+
+class AcceptInviteRequest(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
