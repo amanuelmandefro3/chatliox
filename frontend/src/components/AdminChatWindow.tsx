@@ -4,6 +4,7 @@ import { getConversations, updateConversationStatus } from '@/api/conversations'
 import { getMessages, sendMessage } from '@/api/messages'
 import { useAuthStore } from '@/store/authStore'
 import { usePresenceStore } from '@/store/presenceStore'
+import Spinner from '@/components/Spinner'
 import type { Conversation, Message, WsEvent } from '@/types/chat'
 
 type InputMode = 'reply' | 'note'
@@ -157,9 +158,14 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
               <button
                 onClick={() => resolve()}
                 disabled={resolving}
-                className="text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50"
+                className="text-sm font-medium bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
-                {resolving ? 'Resolving…' : 'Resolve'}
+                {resolving ? (
+                  <span className="flex items-center gap-1.5">
+                    <Spinner size="xs" variant="white" />
+                    Resolving…
+                  </span>
+                ) : 'Resolve'}
               </button>
             )}
           </div>
@@ -235,10 +241,12 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
                 type="submit"
                 disabled={isPending || !content.trim()}
                 className={`flex-shrink-0 disabled:opacity-40 text-white rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                  mode === 'note' ? 'bg-amber-500 hover:bg-amber-400' : 'bg-indigo-600 hover:bg-indigo-500'
+                  mode === 'note' ? 'bg-amber-500 hover:bg-amber-400' : 'bg-brand-500 hover:bg-brand-600'
                 }`}
               >
-                {mode === 'note' ? 'Add note' : 'Send'}
+                {isPending ? (
+                  <Spinner size="xs" variant="white" />
+                ) : mode === 'note' ? 'Add note' : 'Send'}
               </button>
             </form>
           </div>
@@ -259,7 +267,7 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
           <div className="p-4 flex flex-col gap-3.5">
             {/* Avatar + name */}
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">
+              <div className="w-9 h-9 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">
                 {conv ? (visitorLabel(conv)[0] ?? '?').toUpperCase() : '?'}
               </div>
               <p className="text-sm font-semibold text-zinc-900 truncate">
@@ -274,7 +282,7 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
               conv ? (
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
                   conv.status === 'waiting' ? 'bg-amber-50 text-amber-700' :
-                  conv.status === 'open'    ? 'bg-indigo-50 text-indigo-700' :
+                  conv.status === 'open'    ? 'bg-brand-50 text-brand-700' :
                                               'bg-emerald-50 text-emerald-700'
                 }`}>{conv.status}</span>
               ) : '—'
@@ -310,7 +318,7 @@ function ModeTab({ label, active, onClick, amber = false }: { label: string; act
       onClick={onClick}
       className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-150 ${
         active
-          ? amber ? 'bg-amber-100 text-amber-800' : 'bg-indigo-50 text-indigo-700'
+          ? amber ? 'bg-amber-100 text-amber-800' : 'bg-brand-50 text-brand-700'
           : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'
       }`}
     >
@@ -373,10 +381,10 @@ function Bubble({ message: m }: { message: Message }) {
   return (
     <div className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[72%] rounded-2xl px-4 py-3 ${
-        isAdmin ? 'bg-indigo-600 text-white' : 'bg-white ring-1 ring-zinc-200 text-zinc-800'
+        isAdmin ? 'bg-brand-500 text-white' : 'bg-white ring-1 ring-zinc-200 text-zinc-800'
       }`}>
         <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{m.content}</p>
-        <p className={`text-[11px] mt-2 text-right ${isAdmin ? 'text-indigo-200' : 'text-zinc-400'}`}>
+        <p className={`text-[11px] mt-2 text-right ${isAdmin ? 'text-brand-100' : 'text-zinc-400'}`}>
           {fmt(m.created_at)}
         </p>
       </div>

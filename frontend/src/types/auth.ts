@@ -4,13 +4,24 @@ export interface Organization {
   invite_token: string
 }
 
+export type UserRole = 'admin' | 'agent'
+
 export interface User {
   id: string
   email: string
   full_name: string
   is_active: boolean
+  role: UserRole
   created_at: string
   organization: Organization
+}
+
+export interface Member {
+  id: string
+  email: string
+  full_name: string
+  role: UserRole
+  created_at: string
 }
 
 export interface LoginRequest {

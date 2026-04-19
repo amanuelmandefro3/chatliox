@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { acceptInvite, getInviteInfo, getMe } from '@/api/auth'
 import Logo from '@/components/Logo'
+import Spinner from '@/components/Spinner'
 import { useAuthStore } from '@/store/authStore'
 
 export default function JoinPage() {
@@ -21,7 +22,7 @@ export default function JoinPage() {
 
   useEffect(() => {
     if (isAuthenticated()) {
-      navigate('/', { replace: true })
+      navigate('/app', { replace: true })
       return
     }
     getInviteInfo(token)
@@ -39,7 +40,7 @@ export default function JoinPage() {
       localStorage.setItem('token', access_token)
       const user = await getMe()
       setAuth(access_token, user)
-      navigate('/')
+      navigate('/app')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       setError(msg ?? 'Something went wrong. Please try again.')
@@ -138,7 +139,12 @@ export default function JoinPage() {
             disabled={loading}
             className="mt-1 w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white font-medium text-sm rounded-lg py-2.5 transition"
           >
-            {loading ? 'Joining…' : `Join ${orgName}`}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Spinner size="sm" variant="white" />
+                Joining…
+              </span>
+            ) : `Join ${orgName}`}
           </button>
         </form>
 

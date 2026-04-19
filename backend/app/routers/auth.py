@@ -7,6 +7,7 @@ from app.core.security import create_access_token, verify_password
 from app.models.user import User
 from app.schemas.auth import AcceptInviteRequest, InviteInfoResponse, LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserResponse
+from app.models.user import UserRole
 from app.services.organization import create_organization, get_organization_by_invite_token
 from app.services.user import create_user, get_user_by_email
 
@@ -19,7 +20,7 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)) ->
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
     org = await create_organization(db, body.org_name)
-    user = await create_user(db, body.email, body.password, body.full_name, org.id)
+    user = await create_user(db, body.email, body.password, body.full_name, org.id, role=UserRole.ADMIN)
     return TokenResponse(access_token=create_access_token(str(user.id)))
 
 

@@ -5,6 +5,7 @@ import { getConversations } from '@/api/conversations'
 import { getMessages, sendMessage } from '@/api/messages'
 import { useAuthStore } from '@/store/authStore'
 import { usePresenceStore } from '@/store/presenceStore'
+import Spinner from '@/components/Spinner'
 import type { Conversation, Message, WsEvent } from '@/types/chat'
 
 function formatTime(iso: string): string {
@@ -157,7 +158,7 @@ export default function ChatPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/app')}
           className="text-gray-400 hover:text-gray-700 transition p-1 rounded"
           aria-label="Back"
         >
@@ -252,9 +253,9 @@ export default function ChatPage() {
         <button
           type="submit"
           disabled={isPending || !content.trim()}
-          className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white rounded-xl px-4 py-2.5 text-sm font-medium transition flex-shrink-0"
+          className="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white rounded-xl px-4 py-2.5 text-sm font-medium transition flex-shrink-0 flex items-center gap-2"
         >
-          Send
+          {isPending ? <><Spinner size="xs" variant="white" />Sending…</> : 'Send'}
         </button>
       </form>
     </div>

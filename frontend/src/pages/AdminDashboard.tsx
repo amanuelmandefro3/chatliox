@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import AdminChatWindow from '@/components/AdminChatWindow'
 import ConversationList from '@/components/ConversationList'
-import { rotateInviteToken, sendInviteEmail } from '@/api/organizations'
+import Spinner from '@/components/Spinner'
+import { getMembers, removeMember, rotateInviteToken, sendInviteEmail, updateMemberRole } from '@/api/organizations'
 import { useAuthStore } from '@/store/authStore'
-import type { User } from '@/types/auth'
+import type { Member, User, UserRole } from '@/types/auth'
 
 type View = 'inbox' | 'settings'
 
@@ -17,6 +19,7 @@ export default function AdminDashboard() {
   const logout = useAuthStore((s) => s.logout)
   const [copied, setCopied] = useState(false)
   const [view, setView] = useState<View>('inbox')
+  const isAdmin = user?.role === 'admin'
 
   const embedCode = user?.organization
     ? `<iframe src="${window.location.origin}/widget?key=${user.organization.widget_key}" style="position:fixed;bottom:0;right:0;width:420px;height:640px;border:none;z-index:2147483647;background:transparent;" allowtransparency="true" title="Chat Support"></iframe>`
@@ -40,7 +43,7 @@ export default function AdminDashboard() {
       {/* ── Slim nav (56px) ──────────────────────────────────────────────────── */}
       <nav className="w-14 bg-zinc-900 flex flex-col items-center py-4 flex-shrink-0">
         <div className="flex flex-col gap-1 flex-1">
-          <NavBtn title="Inbox" active={view === 'inbox'} onClick={() => { setView('inbox'); navigate('/') }}>
+          <NavBtn title="Inbox" active={view === 'inbox'} onClick={() => { setView('inbox'); navigate('/app') }}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 13.5h3.86a2.25 2.25 0 012.012 1.244l.256.512a2.25 2.25 0 002.013 1.244h3.218a2.25 2.25 0 002.013-1.244l.256-.512a2.25 2.25 0 012.013-1.244h3.859m-19.5.338V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 00-2.15-1.588H6.911a2.25 2.25 0 00-2.15 1.588L2.35 13.177a2.25 2.25 0 00-.1.661z" />
             </svg>
@@ -52,21 +55,17 @@ export default function AdminDashboard() {
             </svg>
           </NavBtn>
 
-          <NavBtn title="Settings" active={view === 'settings'} onClick={() => setView('settings')}>
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </NavBtn>
+          {isAdmin && (
+            <NavBtn title="Settings" active={view === 'settings'} onClick={() => setView('settings')}>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </NavBtn>
+          )}
         </div>
 
-        <button
-          onClick={() => { logout(); navigate('/login') }}
-          title={`Sign out — ${user?.full_name ?? ''}`}
-          className="w-8 h-8 rounded-full bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center transition-all duration-200 text-zinc-200 text-xs font-semibold"
-        >
-          {initials}
-        </button>
+        <UserMenu user={user} initials={initials} onSignOut={() => { logout(); navigate('/login') }} />
       </nav>
 
       {view === 'settings' ? (
@@ -85,7 +84,7 @@ export default function AdminDashboard() {
                 <p className="text-xs text-zinc-400 mt-0.5 truncate">{user.organization.name}</p>
               )}
             </div>
-            <ConversationList activeId={id} onSelect={(cid) => navigate(`/c/${cid}`)} />
+            <ConversationList activeId={id} onSelect={(cid) => navigate(`/app/c/${cid}`)} />
           </aside>
 
           {/* ── Workspace canvas ─────────────────────────────────────────────── */}
@@ -100,6 +99,80 @@ export default function AdminDashboard() {
     </div>
   )
 }
+
+// ─── User menu popover ───────────────────────────────────────────────────────
+
+function UserMenu({ user, initials, onSignOut }: { user: User | null; initials: string; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        title={user?.full_name ?? 'Account'}
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 text-xs font-semibold ring-2 ring-transparent ${
+          open
+            ? 'bg-brand-500 text-white ring-brand-400/50'
+            : 'bg-zinc-700 hover:bg-zinc-600 text-zinc-200'
+        }`}
+      >
+        {initials}
+      </button>
+
+      {open && (
+        <div className="absolute bottom-10 left-full ml-2 w-56 bg-white rounded-2xl shadow-xl shadow-black/10 border border-zinc-100 overflow-hidden z-50">
+          {/* User info */}
+          <div className="px-4 pt-4 pb-3 border-b border-zinc-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900 truncate">{user?.full_name ?? '—'}</p>
+                <p className="text-xs text-zinc-400 truncate">{user?.email ?? '—'}</p>
+              </div>
+            </div>
+            <div className="mt-2.5">
+              <span className={`inline-flex text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                user?.role === 'admin' ? 'bg-brand-50 text-brand-700' : 'bg-zinc-100 text-zinc-500'
+              }`}>
+                {user?.role === 'admin' ? 'Admin' : 'Agent'}
+              </span>
+              {user?.organization?.name && (
+                <span className="ml-1.5 text-[11px] text-zinc-400">{user.organization.name}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Sign out */}
+          <div className="p-2">
+            <button
+              onClick={() => { setOpen(false); onSignOut() }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors duration-150 font-medium"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+              </svg>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Settings view ────────────────────────────────────────────────────────────
 
 function SettingsView({
   user,
@@ -183,16 +256,21 @@ function SettingsView({
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendEmailInvite()}
-              className="flex-1 min-w-0 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition"
+              className="flex-1 min-w-0 rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition"
             />
             <button
               onClick={sendEmailInvite}
               disabled={!inviteEmail.trim() || sending}
               className={`flex-shrink-0 text-sm font-medium px-4 py-2 rounded-lg disabled:opacity-40 text-white transition-all duration-200 ${
-                sendStatus === 'sent' ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-500'
+                sendStatus === 'sent' ? 'bg-emerald-600' : 'bg-brand-500 hover:bg-brand-600'
               }`}
             >
-              {sending ? 'Sending…' : sendStatus === 'sent' ? '✓ Sent!' : 'Send invite'}
+              {sending ? (
+                <span className="flex items-center gap-1.5">
+                  <Spinner size="xs" variant="white" />
+                  Sending…
+                </span>
+              ) : sendStatus === 'sent' ? '✓ Sent!' : 'Send invite'}
             </button>
           </div>
           {sendStatus === 'error' && sendError && (
@@ -231,8 +309,88 @@ function SettingsView({
             {rotating ? 'Rotating…' : 'Rotate link (revokes old invites)'}
           </button>
         </div>
+
+        {/* Team members */}
+        <TeamMembersCard currentUserId={user?.id ?? ''} />
       </div>
     </main>
+  )
+}
+
+function TeamMembersCard({ currentUserId }: { currentUserId: string }) {
+  const queryClient = useQueryClient()
+
+  const { data: members = [], isLoading } = useQuery({
+    queryKey: ['members'],
+    queryFn: getMembers,
+  })
+
+  const { mutate: changeRole } = useMutation({
+    mutationFn: ({ id, role }: { id: string; role: UserRole }) => updateMemberRole(id, role),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
+  })
+
+  const { mutate: remove } = useMutation({
+    mutationFn: (id: string) => removeMember(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
+  })
+
+  const adminCount = members.filter((m) => m.role === 'admin').length
+
+  return (
+    <div className="bg-white rounded-xl ring-1 ring-zinc-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-zinc-100 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-zinc-900">Team members</p>
+          <p className="text-xs text-zinc-500 mt-0.5">{members.length} member{members.length !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
+      {isLoading ? (
+        <div className="px-6 py-6 flex justify-center">
+          <div className="w-4 h-4 rounded-full border-2 border-zinc-200 border-t-zinc-500 animate-spin" />
+        </div>
+      ) : (
+        <ul className="divide-y divide-zinc-100">
+          {members.map((m: Member) => {
+            const isSelf = m.id === currentUserId
+            const canDemote = !(m.role === 'admin' && adminCount <= 1)
+            return (
+              <li key={m.id} className="flex items-center gap-3 px-6 py-3.5">
+                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                  {m.full_name[0]?.toUpperCase() ?? '?'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-zinc-900 truncate">
+                    {m.full_name}{isSelf && <span className="ml-1.5 text-xs text-zinc-400">(you)</span>}
+                  </p>
+                  <p className="text-xs text-zinc-400 truncate">{m.email}</p>
+                </div>
+                <select
+                  value={m.role}
+                  disabled={isSelf && !canDemote}
+                  onChange={(e) => changeRole({ id: m.id, role: e.target.value as UserRole })}
+                  className="text-xs font-medium rounded-md px-2 py-1 border border-zinc-200 bg-zinc-50 text-zinc-700 outline-none focus:border-brand-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="agent">Agent</option>
+                </select>
+                {!isSelf && (
+                  <button
+                    onClick={() => remove(m.id)}
+                    title="Remove member"
+                    className="ml-1 p-1.5 rounded-lg text-zinc-300 hover:text-red-500 hover:bg-red-50 transition-all duration-150"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 

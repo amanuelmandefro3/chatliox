@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import enum
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, String
+from sqlalchemy import Boolean, Enum, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,6 +17,11 @@ if TYPE_CHECKING:
     from app.models.organization import Organization
 
 
+class UserRole(str, enum.Enum):
+    ADMIN = "admin"
+    AGENT = "agent"
+
+
 class User(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
@@ -23,6 +29,12 @@ class User(UUIDMixin, TimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole, name="user_role", values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=UserRole.AGENT,
+        server_default="agent",
+    )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

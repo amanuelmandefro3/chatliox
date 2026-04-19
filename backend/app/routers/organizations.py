@@ -1,25 +1,101 @@
 import logging
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
-
-logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_admin
 from app.core.email import send_invite_email
-from app.models.user import User
-from app.schemas.user import OrganizationInfo
+from app.models.user import User, UserRole
+from app.schemas.user import MemberResponse, OrganizationInfo
 from app.services.organization import rotate_invite_token
+from app.services.user import get_members_by_org
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
+
+
+@router.get("/members", response_model=list[MemberResponse])
+async def list_members(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[MemberResponse]:
+    return await get_members_by_org(db, current_user.organization_id)
+
+
+class UpdateRoleRequest(BaseModel):
+    role: UserRole
+
+
+@router.patch("/members/{member_id}/role", response_model=MemberResponse)
+async def update_member_role(
+    member_id: uuid.UUID,
+    body: UpdateRoleRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> MemberResponse:
+    from sqlalchemy import select
+    from app.models.user import User as UserModel
+    result = await db.execute(
+        select(UserModel).where(
+            UserModel.id == member_id,
+            UserModel.organization_id == current_user.organization_id,
+        )
+    )
+    member = result.scalar_one_or_none()
+    if member is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    if member.id == current_user.id and body.role != UserRole.ADMIN:
+        # Prevent self-demotion — ensure at least one admin remains
+        from sqlalchemy import func
+        count_result = await db.execute(
+            select(func.count()).select_from(UserModel).where(
+                UserModel.organization_id == current_user.organization_id,
+                UserModel.role == UserRole.ADMIN,
+                UserModel.is_active == True,  # noqa: E712
+            )
+        )
+        if (count_result.scalar() or 0) <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the only admin",
+            )
+    member.role = body.role
+    await db.commit()
+    await db.refresh(member)
+    return member
+
+
+@router.delete("/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member(
+    member_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> None:
+    if member_id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove yourself")
+    from sqlalchemy import select
+    from app.models.user import User as UserModel
+    result = await db.execute(
+        select(UserModel).where(
+            UserModel.id == member_id,
+            UserModel.organization_id == current_user.organization_id,
+        )
+    )
+    member = result.scalar_one_or_none()
+    if member is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+    member.is_active = False
+    await db.commit()
 
 
 @router.post("/invite/rotate", response_model=OrganizationInfo)
 async def rotate_invite(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> OrganizationInfo:
     org = await rotate_invite_token(db, current_user.organization_id)
     if org is None:

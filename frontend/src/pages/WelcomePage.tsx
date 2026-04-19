@@ -46,7 +46,7 @@ export default function WelcomePage() {
           {/* Step 1 */}
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">1</span>
+              <span className="w-6 h-6 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">1</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900">Install the chat widget</p>
                 <p className="text-xs text-gray-500 mt-1 mb-3">Paste this snippet before the closing &lt;/body&gt; tag on your website.</p>
@@ -55,7 +55,7 @@ export default function WelcomePage() {
                   className={`w-full text-sm font-medium py-2.5 rounded-xl ring-1 transition-all duration-200 ${
                     copied
                       ? 'ring-emerald-300 bg-emerald-50 text-emerald-700'
-                      : 'ring-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                      : 'ring-brand-100 bg-brand-50 text-brand-700 hover:bg-brand-100'
                   }`}
                 >
                   {copied ? '✓ Embed code copied!' : 'Copy widget snippet'}
@@ -67,7 +67,7 @@ export default function WelcomePage() {
           {/* Step 2 */}
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-start gap-3">
-              <span className="w-6 h-6 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">2</span>
+              <span className="w-6 h-6 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 mt-0.5">2</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900">Invite your team</p>
                 <p className="text-xs text-gray-500 mt-1 mb-3">Share this link with teammates so they can join your workspace.</p>
@@ -91,8 +91,8 @@ export default function WelcomePage() {
           {/* Go to dashboard */}
           <div className="p-6">
             <button
-              onClick={() => navigate('/')}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-xl py-3 transition-all duration-200"
+              onClick={() => navigate('/app')}
+              className="w-full bg-brand-500 hover:bg-brand-600 text-white font-medium text-sm rounded-xl py-3 transition-all duration-200"
             >
               Go to dashboard →
             </button>
