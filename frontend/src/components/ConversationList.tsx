@@ -26,7 +26,7 @@ function visitorLabel(c: Conversation): string {
 }
 
 const AVATAR_PALETTE = [
-  'bg-indigo-100 text-indigo-700',
+  'bg-brand-100 text-brand-700',
   'bg-sky-100 text-sky-700',
   'bg-teal-100 text-teal-700',
   'bg-violet-100 text-violet-700',
@@ -77,7 +77,7 @@ export default function ConversationList({ activeId, onSelect }: Props) {
             >
               {label}
               {key === 'waiting' && waitingCount > 0 && (
-                <span className="ml-1 text-[10px] font-semibold bg-indigo-500 text-white rounded-full px-1.5 py-0">
+                <span className="ml-1 text-[10px] font-semibold bg-brand-500 text-white rounded-full px-1.5 py-0">
                   {waitingCount}
                 </span>
               )}
@@ -137,7 +137,7 @@ function Row({
           {(visitorLabel(c)[0] ?? '?').toUpperCase()}
         </div>
         {isWaiting && (
-          <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-indigo-500 rounded-full ring-2 ring-white" />
+          <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-brand-500 rounded-full ring-2 ring-white" />
         )}
       </div>
 

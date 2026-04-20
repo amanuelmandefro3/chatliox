@@ -6,6 +6,8 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import AdminDashboard from '@/pages/AdminDashboard'
 import ChatPage from '@/pages/ChatPage'
 import JoinPage from '@/pages/JoinPage'
+import GuidePage from '@/pages/GuidePage'
+import LandingPage from '@/pages/LandingPage'
 import LoginPage from '@/pages/LoginPage'
 import RegisterPage from '@/pages/RegisterPage'
 import WelcomePage from '@/pages/WelcomePage'
@@ -30,13 +32,15 @@ export default function App() {
     <ErrorBoundary>
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/guide" element={<GuidePage />} />
         <Route path="/widget" element={<WidgetPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/join/:token" element={<JoinPage />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<AdminDashboard />} />
-          <Route path="/c/:id" element={<AdminDashboard />} />
+          <Route path="/app" element={<AdminDashboard />} />
+          <Route path="/app/c/:id" element={<AdminDashboard />} />
           <Route path="/chat/:id" element={<ChatPage />} />
           <Route path="/welcome" element={<WelcomePage />} />
         </Route>

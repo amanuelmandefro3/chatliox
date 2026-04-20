@@ -4,6 +4,7 @@ import { getConversations, updateConversationStatus } from '@/api/conversations'
 import { getMessages, sendMessage } from '@/api/messages'
 import { useAuthStore } from '@/store/authStore'
 import { usePresenceStore } from '@/store/presenceStore'
+import Spinner from '@/components/Spinner'
 import type { Conversation, Message, WsEvent } from '@/types/chat'
 
 type InputMode = 'reply' | 'note'
@@ -21,6 +22,7 @@ function visitorLabel(c: Conversation) {
 export default function AdminChatWindow({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient()
   const token = useAuthStore((s) => s.token)
+  const user  = useAuthStore((s) => s.user)
   const { setOnline, setOffline, setTyping, typingUsers, clear: clearPresence } = usePresenceStore()
 
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -108,19 +110,62 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
 
   const { mutate: send, isPending } = useMutation({
     mutationFn: sendMessage,
-    onSuccess: (m) => { appendMsg(m); queryClient.invalidateQueries({ queryKey: ['conversations'] }); setContent('') },
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: ['messages', conversationId] })
+      const prev = queryClient.getQueryData<Message[]>(['messages', conversationId]) ?? []
+      const tempId = `opt-${Date.now()}`
+      queryClient.setQueryData<Message[]>(['messages', conversationId], [
+        ...prev,
+        {
+          id: tempId,
+          conversation_id: conversationId,
+          content: vars.content,
+          sender_type: 'admin',
+          sender_id: null,
+          sender_name: user?.full_name ?? null,
+          is_read: true,
+          is_internal: vars.is_internal ?? false,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      return { prev, tempId }
+    },
+    onSuccess: (real, _, ctx) => {
+      queryClient.setQueryData<Message[]>(
+        ['messages', conversationId],
+        (msgs = []) => msgs.map((m) => (m.id === ctx?.tempId ? real : m)),
+      )
+      queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    },
+    onError: (_, vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['messages', conversationId], ctx.prev)
+      setContent(vars.content)
+    },
   })
 
   const { mutate: resolve, isPending: resolving } = useMutation({
     mutationFn: () => updateConversationStatus(conversationId, 'closed'),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['conversations'] })
+      const prev = queryClient.getQueryData<Conversation[]>(['conversations'])
+      queryClient.setQueryData<Conversation[]>(['conversations'], (convs = []) =>
+        convs.map((c) => (c.id === conversationId ? { ...c, status: 'closed' as ConversationStatus } : c)),
+      )
+      return { prev }
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),
+    onError: (_, __, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['conversations'], ctx.prev)
+    },
   })
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    if (!content.trim() || resolved) return
+    const text = content.trim()
+    if (!text || resolved) return
     if (mode === 'reply') { if (typingTimer.current) clearTimeout(typingTimer.current); sendTyping(false) }
-    send({ conversation_id: conversationId, content: content.trim(), sender_type: 'admin', is_internal: mode === 'note' })
+    setContent('')
+    send({ conversation_id: conversationId, content: text, sender_type: 'admin', is_internal: mode === 'note' })
   }
 
   return (
@@ -138,7 +183,7 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
             </p>
             <p className="text-xs text-zinc-400 truncate">
               {conv?.assigned_to_name
-                ? <span>Handled by <span className="text-indigo-600 font-medium">{conv.assigned_to_name}</span></span>
+                ? <span>Handled by <span className="text-brand-600 font-medium">{conv.assigned_to_name}</span></span>
                 : conv?.visitor_email ?? 'No reply yet'}
             </p>
           </div>
@@ -157,9 +202,14 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
               <button
                 onClick={() => resolve()}
                 disabled={resolving}
-                className="text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50"
+                className="text-sm font-medium bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg transition-all duration-200 disabled:opacity-50"
               >
-                {resolving ? 'Resolving…' : 'Resolve'}
+                {resolving ? (
+                  <span className="flex items-center gap-1.5">
+                    <Spinner size="xs" variant="white" />
+                    Resolving…
+                  </span>
+                ) : 'Resolve'}
               </button>
             )}
           </div>
@@ -235,10 +285,15 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
                 type="submit"
                 disabled={isPending || !content.trim()}
                 className={`flex-shrink-0 disabled:opacity-40 text-white rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                  mode === 'note' ? 'bg-amber-500 hover:bg-amber-400' : 'bg-indigo-600 hover:bg-indigo-500'
+                  mode === 'note' ? 'bg-amber-500 hover:bg-amber-400' : 'bg-brand-500 hover:bg-brand-600'
                 }`}
               >
-                {mode === 'note' ? 'Add note' : 'Send'}
+                {isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner size="xs" variant="white" />
+                    <span>{mode === 'note' ? 'Adding note…' : 'Sending…'}</span>
+                  </span>
+                ) : mode === 'note' ? 'Add note' : 'Send'}
               </button>
             </form>
           </div>
@@ -259,7 +314,7 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
           <div className="p-4 flex flex-col gap-3.5">
             {/* Avatar + name */}
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">
+              <div className="w-9 h-9 bg-brand-100 text-brand-700 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">
                 {conv ? (visitorLabel(conv)[0] ?? '?').toUpperCase() : '?'}
               </div>
               <p className="text-sm font-semibold text-zinc-900 truncate">
@@ -274,7 +329,7 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
               conv ? (
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
                   conv.status === 'waiting' ? 'bg-amber-50 text-amber-700' :
-                  conv.status === 'open'    ? 'bg-indigo-50 text-indigo-700' :
+                  conv.status === 'open'    ? 'bg-brand-50 text-brand-700' :
                                               'bg-emerald-50 text-emerald-700'
                 }`}>{conv.status}</span>
               ) : '—'
@@ -310,7 +365,7 @@ function ModeTab({ label, active, onClick, amber = false }: { label: string; act
       onClick={onClick}
       className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all duration-150 ${
         active
-          ? amber ? 'bg-amber-100 text-amber-800' : 'bg-indigo-50 text-indigo-700'
+          ? amber ? 'bg-amber-100 text-amber-800' : 'bg-brand-50 text-brand-700'
           : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'
       }`}
     >
@@ -350,10 +405,11 @@ function ActionBtn({ children, onClick, disabled = false, icon }: { children: Re
 
 function Bubble({ message: m }: { message: Message }) {
   const isAdmin = m.sender_type === 'admin'
+  const isPending = m.id.startsWith('opt-')
 
   if (m.is_internal) {
     return (
-      <div className="px-1">
+      <div className={`px-1 transition-opacity duration-150 ${isPending ? 'opacity-60' : 'opacity-100'}`}>
         <div className="w-full bg-amber-50 border border-dashed border-amber-300 rounded-xl px-4 py-3">
           <div className="flex items-center gap-1.5 mb-2">
             <svg className="w-3 h-3 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -362,7 +418,9 @@ function Bubble({ message: m }: { message: Message }) {
             <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">
               Internal note{m.sender_name ? ` · ${m.sender_name}` : ''}
             </p>
-            <p className="ml-auto text-[10px] text-amber-400 flex-shrink-0">{fmt(m.created_at)}</p>
+            <p className="ml-auto text-[10px] text-amber-400 flex-shrink-0">
+              {isPending ? '···' : fmt(m.created_at)}
+            </p>
           </div>
           <p className="text-sm text-amber-900 whitespace-pre-wrap break-words leading-relaxed">{m.content}</p>
         </div>
@@ -371,13 +429,13 @@ function Bubble({ message: m }: { message: Message }) {
   }
 
   return (
-    <div className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex transition-opacity duration-150 ${isAdmin ? 'justify-end' : 'justify-start'} ${isPending ? 'opacity-60' : 'opacity-100'}`}>
       <div className={`max-w-[72%] rounded-2xl px-4 py-3 ${
-        isAdmin ? 'bg-indigo-600 text-white' : 'bg-white ring-1 ring-zinc-200 text-zinc-800'
+        isAdmin ? 'bg-brand-500 text-white' : 'bg-white ring-1 ring-zinc-200 text-zinc-800'
       }`}>
         <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{m.content}</p>
-        <p className={`text-[11px] mt-2 text-right ${isAdmin ? 'text-indigo-200' : 'text-zinc-400'}`}>
-          {fmt(m.created_at)}
+        <p className={`text-[11px] mt-2 text-right ${isAdmin ? 'text-brand-100' : 'text-zinc-400'}`}>
+          {isPending ? '···' : fmt(m.created_at)}
         </p>
       </div>
     </div>

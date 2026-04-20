@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_access_token
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.services.user import get_user_by_id
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -37,6 +37,18 @@ async def get_current_user(
         raise _401
 
     return user
+
+
+_403 = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="Admin access required",
+)
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role != UserRole.ADMIN:
+        raise _403
+    return current_user
 
 
 async def get_optional_user(

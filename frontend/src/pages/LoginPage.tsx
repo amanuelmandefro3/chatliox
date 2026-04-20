@@ -1,7 +1,8 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { login, getMe } from '@/api/auth'
 import Logo from '@/components/Logo'
+import Spinner from '@/components/Spinner'
 import { useAuthStore } from '@/store/authStore'
 
 export default function LoginPage() {
@@ -14,10 +15,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  if (isAuthenticated()) {
-    navigate('/', { replace: true })
-    return null
-  }
+  if (isAuthenticated()) return <Navigate to="/app" replace />
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -30,7 +28,7 @@ export default function LoginPage() {
       localStorage.setItem('token', access_token)
       const user = await getMe()
       setAuth(access_token, user)
-      navigate('/')
+      navigate('/app')
     } catch {
       setError('Incorrect email or password.')
     } finally {
@@ -89,7 +87,12 @@ export default function LoginPage() {
             disabled={loading}
             className="mt-1 w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white font-medium text-sm rounded-lg py-2.5 transition"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Spinner size="sm" variant="white" />
+                Signing in…
+              </span>
+            ) : 'Sign in'}
           </button>
         </form>
 

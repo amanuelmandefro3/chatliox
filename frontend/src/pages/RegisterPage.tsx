@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { register, getMe } from '@/api/auth'
 import Logo from '@/components/Logo'
+import Spinner from '@/components/Spinner'
 import { useAuthStore } from '@/store/authStore'
 
 export default function RegisterPage() {
@@ -16,7 +17,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  if (isAuthenticated()) return <Navigate to="/" replace />
+  if (isAuthenticated()) return <Navigate to="/app" replace />
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -112,7 +113,12 @@ export default function RegisterPage() {
             disabled={loading}
             className="mt-1 w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white font-medium text-sm rounded-lg py-2.5 transition"
           >
-            {loading ? 'Creating workspace…' : 'Create workspace'}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Spinner size="sm" variant="white" />
+                Creating workspace…
+              </span>
+            ) : 'Create workspace'}
           </button>
         </form>
 

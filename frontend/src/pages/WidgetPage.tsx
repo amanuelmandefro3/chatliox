@@ -11,6 +11,7 @@ import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 import { createConversation, getVisitorConversationStatus } from '@/api/conversations'
 import { getVisitorMessages, sendMessage } from '@/api/messages'
+import Spinner from '@/components/Spinner'
 import type { ConversationStatus, Message, WsEvent } from '@/types/chat'
 
 function widgetErrorMessage(error: unknown): string {
@@ -212,9 +213,14 @@ function WelcomeView({ visitorId, widgetKey, onConversationCreated }: WelcomeVie
         <button
           onClick={() => startChat()}
           disabled={!firstMessage.trim() || isPending}
-          className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-medium transition-all duration-200"
+          className="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl py-2.5 text-sm font-medium transition-all duration-200"
         >
-          {isPending ? 'Starting…' : 'Send message →'}
+          {isPending ? (
+            <span className="flex items-center justify-center gap-2">
+              <Spinner size="sm" variant="white" />
+              Starting…
+            </span>
+          ) : 'Send message →'}
         </button>
       </div>
     </div>
@@ -336,20 +342,47 @@ function ChatView({ conversationId, visitorId, onAdminName, convStatus, onStatus
 
   const { mutate: send, isPending, error: sendError } = useMutation({
     mutationFn: sendMessage,
-    onSuccess: (newMsg) => {
-      appendMessage(newMsg)
-      setContent('')
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: ['widget-messages', conversationId] })
+      const prev = queryClient.getQueryData<Message[]>(['widget-messages', conversationId]) ?? []
+      const tempId = `opt-${Date.now()}`
+      queryClient.setQueryData<Message[]>(['widget-messages', conversationId], [
+        ...prev,
+        {
+          id: tempId,
+          conversation_id: conversationId,
+          content: vars.content,
+          sender_type: 'visitor',
+          sender_id: null,
+          sender_name: null,
+          is_read: false,
+          is_internal: false,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      return { prev, tempId }
+    },
+    onSuccess: (real, _, ctx) => {
+      queryClient.setQueryData<Message[]>(
+        ['widget-messages', conversationId],
+        (msgs = []) => msgs.map((m) => (m.id === ctx?.tempId ? real : m)),
+      )
+    },
+    onError: (_, vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(['widget-messages', conversationId], ctx.prev)
+      setContent(vars.content)
     },
   })
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (!content.trim()) return
+    const text = content.trim()
+    if (!text) return
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
     sendTyping(false)
-    // Optimistically reopen if resolved — backend will confirm via WS status event
+    setContent('')
     if (convStatus === 'closed') onStatusChange('waiting')
-    send({ conversation_id: conversationId, content: content.trim(), sender_type: 'visitor' })
+    send({ conversation_id: conversationId, content: text, sender_type: 'visitor' })
   }
 
   if (messagesUnavailable) return <UnavailableState />
@@ -391,17 +424,19 @@ function ChatView({ conversationId, visitorId, onAdminName, convStatus, onStatus
         </div>
       </div>
 
-      {/* Resolved banner */}
-      {convStatus === 'closed' && (
-        <div className="mx-3 mb-2 mt-1 flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-3.5 py-2.5">
+      {/* Resolved banner — slides in from top when status changes to closed */}
+      <div className={`overflow-hidden transition-all duration-300 ease-out ${
+        convStatus === 'closed' ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
+      }`}>
+        <div className="mx-3 mb-2 mt-1 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3.5 py-2.5">
           <svg className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
           </svg>
-          <p className="text-xs text-emerald-700 leading-snug">
+          <p className="text-xs text-emerald-700 font-medium leading-snug">
             This conversation was resolved. Reply below to reopen it.
           </p>
         </div>
-      )}
+      </div>
 
       {sendError && (
         <div className="px-4 pb-1 bg-white">
@@ -430,11 +465,16 @@ function ChatView({ conversationId, visitorId, onAdminName, convStatus, onStatus
         <button
           type="submit"
           disabled={isPending || !content.trim()}
-          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl px-3 py-2.5 transition-all duration-200 flex-shrink-0"
+          aria-label={isPending ? 'Sending' : 'Send message'}
+          className="bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl px-3 py-2.5 transition-all duration-200 flex-shrink-0 flex items-center justify-center w-10"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-          </svg>
+          {isPending ? (
+            <Spinner size="xs" variant="white" />
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+            </svg>
+          )}
         </button>
       </form>
     </>
@@ -461,9 +501,10 @@ function UnavailableState() {
 
 function WidgetBubble({ message }: { message: Message }) {
   const isVisitor = message.sender_type === 'visitor'
+  const isPending = message.id.startsWith('opt-')
 
   return (
-    <div className={`flex ${isVisitor ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex transition-opacity duration-150 ${isVisitor ? 'justify-end' : 'justify-start'} ${isPending ? 'opacity-60' : 'opacity-100'}`}>
       <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm ${
         isVisitor
           ? 'bg-brand-500 text-white'
@@ -471,7 +512,7 @@ function WidgetBubble({ message }: { message: Message }) {
       }`}>
         <p className="whitespace-pre-wrap break-words leading-relaxed">{message.content}</p>
         <p className={`text-xs mt-1 text-right ${isVisitor ? 'text-brand-100' : 'text-zinc-400'}`}>
-          {formatTime(message.created_at)}
+          {isPending ? '···' : formatTime(message.created_at)}
         </p>
       </div>
     </div>
