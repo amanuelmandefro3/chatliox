@@ -84,6 +84,7 @@ async def remove_member(
         select(UserModel).where(
             UserModel.id == member_id,
             UserModel.organization_id == current_user.organization_id,
+            UserModel.is_active == True,
         )
     )
     member = result.scalar_one_or_none()
