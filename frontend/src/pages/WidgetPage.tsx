@@ -465,6 +465,7 @@ function ChatView({ conversationId, visitorId, onAdminName, convStatus, onStatus
         <button
           type="submit"
           disabled={isPending || !content.trim()}
+          aria-label={isPending ? 'Sending' : 'Send message'}
           className="bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white rounded-xl px-3 py-2.5 transition-all duration-200 flex-shrink-0 flex items-center justify-center w-10"
         >
           {isPending ? (

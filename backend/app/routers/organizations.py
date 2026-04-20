@@ -21,7 +21,7 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 @router.get("/members", response_model=list[MemberResponse])
 async def list_members(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> list[MemberResponse]:
     return await get_members_by_org(db, current_user.organization_id)
 
@@ -43,6 +43,7 @@ async def update_member_role(
         select(UserModel).where(
             UserModel.id == member_id,
             UserModel.organization_id == current_user.organization_id,
+            UserModel.is_active == True,  # noqa: E712
         )
     )
     member = result.scalar_one_or_none()
@@ -111,7 +112,7 @@ class SendInviteRequest(BaseModel):
 async def send_invite(
     body: SendInviteRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ) -> None:
     from app.services.organization import get_organization_by_id
     org = await get_organization_by_id(db, current_user.organization_id)

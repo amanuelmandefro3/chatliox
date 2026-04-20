@@ -289,7 +289,10 @@ export default function AdminChatWindow({ conversationId }: { conversationId: st
                 }`}
               >
                 {isPending ? (
-                  <Spinner size="xs" variant="white" />
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner size="xs" variant="white" />
+                    <span>{mode === 'note' ? 'Adding note…' : 'Sending…'}</span>
+                  </span>
                 ) : mode === 'note' ? 'Add note' : 'Send'}
               </button>
             </form>
