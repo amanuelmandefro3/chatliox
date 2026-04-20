@@ -5,7 +5,7 @@ import { getMessages, sendMessage } from '@/api/messages'
 import { useAuthStore } from '@/store/authStore'
 import { usePresenceStore } from '@/store/presenceStore'
 import Spinner from '@/components/Spinner'
-import type { Conversation, Message, WsEvent } from '@/types/chat'
+import type { Conversation, ConversationStatus, Message, WsEvent } from '@/types/chat'
 
 type InputMode = 'reply' | 'note'
 
